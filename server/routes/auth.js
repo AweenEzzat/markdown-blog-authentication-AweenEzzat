@@ -1,33 +1,73 @@
 const express = require('express');
+const bcrypt = require('bcrypt');
 const User = require('./../models/user');
 const router = express.Router();
 
-// @TODO: Assignment here
+// Sign in function
+router.post('/signin', async (req, res) => {
+  const { username, password } = req.body;
 
-router.post('/signin', (req, res) => {
-  const { username, password, rememberMe } = req.body;
-  // @TODO: Complete user sign in
+  try {
+    const user = await User.findOne({ username: username });
+    if (!user) {
+      return res.status(400).render('user/signin', { error: 'wrong username or password' });
+    }
 
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      return res.status(400).render('user/signin', { error: 'wrong username or password' });
+    }
+
+    res.setHeader('user', user.id);
+    res.redirect('/user/authenticated');
+  } catch (error) {
+    res.status(500).send('Server error');
+  }
 });
 
-router.post('/signup', (req, res) => {
+// Sign up function
+router.post('/signup', async (req, res) => {
   const {
     firstname,
     lastname,
     username,
     password,
     password2,
-    acceptTos, // either "on" or undefined
+    acceptTos,
     avatar,
   } = req.body;
 
-  // @TODO: Complete user sign up
+  if (password !== password2) {
+    return res.status(400).render('user/signup', { error: "passwords don't match" });
+  }
 
+  try {
+    const existingUser = await User.findOne({ username: username });
+    if (existingUser) {
+      return res.status(400).render('user/signup', { error: 'username already used' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = new User({
+      username: username,
+      firstname: firstname,
+      lastname: lastname,
+      password_hash: hashedPassword,
+      avatar: avatar,
+    });
+
+    await newUser.save();
+    res.redirect('/user/authenticated');
+  } catch (error) {
+    res.status(500).send('Server error');
+  }
 });
 
+// Sign out function (bonus)
 router.get('/signout', (req, res) => {
-  // @TODO: Complete user sign out
-
+  res.redirect('/user/signin');
 });
 
 // renders sign up page
